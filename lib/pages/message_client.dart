@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:bt_classic/bt_classic.dart';
+import 'file_transfer_page.dart';
+import '../services/file_transfer_service.dart';
+import '../utils/constants.dart';
 
 class MessageClient extends StatefulWidget {
   final BluetoothDevice device;
@@ -15,6 +18,9 @@ class _MessageClientState extends State<MessageClient> {
   final List<_Msg> _msgs = [];
   bool _connecting = true;
   bool _connected = false;
+  
+  // File transfer service instance
+  final _fileService = FileTransferService();
 
   @override
   void initState() {
@@ -33,7 +39,14 @@ class _MessageClientState extends State<MessageClient> {
     };
     _client.onMessageReceived = (msg) {
       if (!mounted) return;
-      setState(() => _msgs.add(_Msg(text: msg, sentByMe: false)));
+      // Check if this is a file transfer message
+      if (msg.contains(FileTransferConstants.messageDelimiter)) {
+        // Route to file transfer service
+        _fileService.handleIncomingMessage(msg);
+      } else {
+        // Regular chat message
+        setState(() => _msgs.add(_Msg(text: msg, sentByMe: false)));
+      }
     };
     _client.onError = (err) {
       if (!mounted) return;
@@ -91,6 +104,24 @@ class _MessageClientState extends State<MessageClient> {
           ),
         ),
         actions: [
+          // File Transfer button
+          IconButton(
+            tooltip: 'Send File',
+            icon: const Icon(Icons.attach_file),
+            onPressed: _connected
+                ? () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FileTransferPage(
+                          sendMessage: _client.sendMessage,
+                          isConnected: _connected,
+                        ),
+                      ),
+                    );
+                  }
+                : null, // Disabled if not connected
+          ),
           if (!_connected && !_connecting)
             IconButton(
               tooltip: 'Reconnect',

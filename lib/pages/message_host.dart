@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:bt_classic/bt_classic.dart';
+import 'file_transfer_page.dart';
+import '../services/file_transfer_service.dart';
+import '../utils/constants.dart';
 
 class MessageHost extends StatefulWidget {
   const MessageHost({super.key});
@@ -14,6 +17,9 @@ class _MessageHostState extends State<MessageHost> {
   bool _serverRunning = false;
   bool _clientConnected = false;
   String _clientAddr = '';
+  
+  // File transfer service instance
+  final _fileService = FileTransferService();
 
   @override
   void initState() {
@@ -31,7 +37,14 @@ class _MessageHostState extends State<MessageHost> {
       });
     };
     _host.onMessageReceived = (msg) {
-      setState(() => _msgs.add(_Msg(text: msg, sentByMe: false)));
+      // Check if this is a file transfer message
+      if (msg.contains(FileTransferConstants.messageDelimiter)) {
+        // Route to file transfer service
+        _fileService.handleIncomingMessage(msg);
+      } else {
+        // Regular chat message
+        setState(() => _msgs.add(_Msg(text: msg, sentByMe: false)));
+      }
     };
     _host.onError = (err) {
       if (!mounted) return;
@@ -84,6 +97,24 @@ class _MessageHostState extends State<MessageHost> {
           ),
         ),
         actions: [
+          // File Transfer button
+          IconButton(
+            tooltip: 'Send File',
+            icon: const Icon(Icons.attach_file),
+            onPressed: _clientConnected
+                ? () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FileTransferPage(
+                          sendMessage: _host.sendMessage,
+                          isConnected: _clientConnected,
+                        ),
+                      ),
+                    );
+                  }
+                : null, // Disabled if no client connected
+          ),
           IconButton(
             tooltip: 'Discoverable',
             icon: const Icon(Icons.visibility),
