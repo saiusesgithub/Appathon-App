@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
-// Note: On Android we use a native channel; other platforms no-op here.
+import 'package:device_apps/device_apps.dart';
+// Note: On Android we use the device_apps plugin; other platforms no-op here.
 
 class SystemUtils {
   static const MethodChannel _channel = MethodChannel('app_control');
@@ -10,7 +11,7 @@ class SystemUtils {
   static Future<void> requestUninstallOrOpenSettings() async {
     if (Platform.isAndroid) {
       try {
-        await _channel.invokeMethod('uninstallSelf');
+        await DeviceApps.uninstallApp('com.example.shadowmesh');
         return;
       } catch (_) {
         // Try native app settings via channel

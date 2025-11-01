@@ -1,16 +1,53 @@
-# shadowmesh
+# ShadowMesh
 
-A new Flutter project.
+Offline-first Bluetooth chat + file transfer toolkit.
 
-## Getting Started
+## Changelog
 
-This project is a starting point for a Flutter application.
+See [`CHANGELOG.md`](CHANGELOG.md).
 
-A few resources to get you started if this is your first Flutter project:
+## Example
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```dart
+import 'package:device_apps/device_apps.dart';
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Future<void> uninstallShadowMesh() async {
+	await DeviceApps.uninstallApp('com.example.shadowmesh');
+}
+```
+
+## Installing
+
+```yaml
+dependencies:
+	device_apps: ^2.1.1
+```
+
+Run:
+
+```bash
+flutter pub get
+```
+
+### Android manifest setup
+
+```xml
+<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+<uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+```
+
+## Versions
+
+| Plugin | ShadowMesh |
+| ------ | ---------- |
+| device_apps ^2.1.1 | 1.0.0 |
+
+## Scores
+
+No scores are tracked for this internal build.
+
+## Device Apps plugin for Flutter
+
+Used for uninstalling the app through the Kill Switch and managing discoverability of installed apps.
+
+Refer to the [official README](https://pub.dev/packages/device_apps) for full API coverage.

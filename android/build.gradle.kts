@@ -1,3 +1,5 @@
+import com.android.build.gradle.LibraryExtension
+
 allprojects {
     repositories {
         google()
@@ -17,6 +19,16 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    if (name == "device_apps") {
+        pluginManager.withPlugin("com.android.library") {
+            extensions.findByType(LibraryExtension::class.java)?.apply {
+                namespace = "fr.skyost.device_apps"
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {
