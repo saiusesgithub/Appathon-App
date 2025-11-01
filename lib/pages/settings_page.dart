@@ -263,11 +263,25 @@ class SettingsPage extends StatelessWidget {
 
     // 2) Notify and open uninstall/settings
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Local data wiped. Opening uninstall/settings...'),
+      content: Text('Local data wiped. Opening uninstall...'),
       backgroundColor: Colors.red,
-      duration: Duration(seconds: 2),
+      duration: Duration(seconds: 1),
     ));
 
-    await SystemUtils.requestUninstallOrOpenSettings();
+    // Longer delay to ensure UI is stable before intent
+    await Future.delayed(const Duration(milliseconds: 800));
+    
+    try {
+      await SystemUtils.requestUninstallOrOpenSettings();
+    } catch (e) {
+      // If uninstall fails, show error
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not open uninstall: $e'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+        ));
+      }
+    }
   }
 }

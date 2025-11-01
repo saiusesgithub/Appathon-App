@@ -418,6 +418,25 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
                     ],
                   ),
                 ),
+                const SizedBox(height: 10),
+                // Debug: Show permission check button
+                TextButton.icon(
+                  icon: const Icon(Icons.settings, color: Colors.white70),
+                  label: const Text('Check Permissions', style: TextStyle(color: Colors.white70)),
+                  onPressed: () async {
+                    final btScan = await Permission.bluetoothScan.status;
+                    final btConnect = await Permission.bluetoothConnect.status;
+                    final location = await Permission.locationWhenInUse.status;
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Scan: $btScan, Connect: $btConnect, Location: $location'),
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    }
+                  },
+                ),
               ],
               
               // Show found devices or scanning message
@@ -780,36 +799,75 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
   
   // Start scanning for devices - EXACT copy from HomePage
   Future<void> _startScanning() async {
+    print('🔍 Starting scan...');
     setState(() {
       _foundDevices.clear();
       _isSearching = true;
     });
     
     // Request permissions first
-    await [
+    print('📋 Requesting permissions...');
+    final results = await [
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
       Permission.bluetoothAdvertise,
       Permission.locationWhenInUse,
     ].request();
+    
+    print('📋 Permission results: $results');
 
     final permissionsOk = await _client.requestPermissions();
+    print('📋 BT Classic permissions: $permissionsOk');
+    
     if (!permissionsOk) {
       if (mounted) {
         setState(() => _isSearching = false);
+        
+        // Check individual permission statuses for debugging
+        final btScan = await Permission.bluetoothScan.status;
+        final btConnect = await Permission.bluetoothConnect.status;
+        final location = await Permission.locationWhenInUse.status;
+        
+        print('❌ Permission check - Scan: $btScan, Connect: $btConnect, Location: $location');
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bluetooth permissions are required.')),
+          SnackBar(
+            content: Text('Permissions denied. Tap to fix.'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Open Settings',
+              textColor: Colors.white,
+              onPressed: () => openAppSettings(),
+            ),
+          ),
         );
       }
       return;
     }
     
+    print('✅ Permissions granted, starting discovery...');
     final started = await _client.startDiscovery();
+    print('🔍 Discovery started: $started');
+    
     if (!started && mounted) {
       setState(() => _isSearching = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Discovery failed to start')),
+        const SnackBar(
+          content: Text('Discovery failed to start. Check Bluetooth is ON.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
       );
+    } else {
+      // Set a timeout in case discovery doesn't auto-finish
+      Future.delayed(const Duration(seconds: 12), () {
+        if (mounted && _isSearching) {
+          print('⏱️ Discovery timeout reached');
+          setState(() => _isSearching = false);
+          _client.stopDiscovery();
+        }
+      });
     }
   }
   

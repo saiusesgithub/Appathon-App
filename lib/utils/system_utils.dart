@@ -1,6 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
+// Note: On Android we use a native channel; other platforms no-op here.
 
 class SystemUtils {
   static const MethodChannel _channel = MethodChannel('app_control');
@@ -13,10 +13,15 @@ class SystemUtils {
         await _channel.invokeMethod('uninstallSelf');
         return;
       } catch (_) {
-        // Fall through to app settings if uninstall intent fails
+        // Try native app settings via channel
+        try {
+          await _channel.invokeMethod('openAppSettingsNative');
+          return;
+        } catch (_) {}
+        // Fall through to package-based plugin method
       }
     }
-    // Fallback: open app settings so user can uninstall/manage the app
-    await openAppSettings();
+    // Non-Android: nothing to do
+    return;
   }
 }
