@@ -29,6 +29,7 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
   
   // Connection state
   bool _isHost = false;           // Am I hosting or joining?
+  bool _isHosting = false;        // Is host server running?
   bool _isConnected = false;      // Are we connected to another device?
   bool _isSearching = false;      // Are we scanning for devices?
   String _connectedDevice = '';   // Name of connected device
@@ -45,6 +46,7 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
     _setupBluetoothCallbacks();
     _setupFileTransferCallbacks();
     _requestPermissions();
+    print('📱 Standalone File Transfer Page initialized');
   }
   
   // Setup Bluetooth callbacks
@@ -52,6 +54,7 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
     // Client callbacks (when joining)
     _client.onDeviceFound = (device) {
       if (!mounted) return;
+      print('🔍 Device found: ${device.name} (${device.address})');
       setState(() {
         if (!_foundDevices.any((d) => d.address == device.address)) {
           _foundDevices.add(device);
@@ -61,7 +64,19 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
     
     _client.onDiscoveryFinished = () {
       if (!mounted) return;
+      print('✅ Discovery finished. Found ${_foundDevices.length} devices');
       setState(() => _isSearching = false);
+    };
+    
+    _client.onError = (error) {
+      if (!mounted) return;
+      print('❌ Client error: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
     };
     
     _client.onConnected = (addr) {
@@ -111,6 +126,17 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
       if (msg.contains(FileTransferConstants.messageDelimiter)) {
         _fileService.handleIncomingMessage(msg);
       }
+    };
+    
+    _host.onError = (error) {
+      if (!mounted) return;
+      print('❌ Host error: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
     };
   }
   
@@ -263,7 +289,7 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
   // Connection options (Host or Join)
   Widget _buildConnectionOptions() {
     return Expanded(
-      child: Center(
+      child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -291,27 +317,32 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _startHosting,
+                  onPressed: _isHosting ? null : _startHosting,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: _isHosting ? Colors.green : Colors.red,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.all(20),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15),
                     ),
                   ),
-                  icon: const Icon(Icons.wifi_tethering, size: 32),
-                  label: const Column(
+                  icon: Icon(
+                    _isHosting ? Icons.check_circle : Icons.wifi_tethering,
+                    size: 32,
+                  ),
+                  label: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Host (Start Server)',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        _isHosting ? 'Hosting Active' : 'Host (Start Server)',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      SizedBox(height: 5),
+                      const SizedBox(height: 5),
                       Text(
-                        'Let others connect to you',
-                        style: TextStyle(fontSize: 14, color: Colors.white70),
+                        _isHosting 
+                            ? 'Waiting for connections...'
+                            : 'Let others connect to you',
+                        style: const TextStyle(fontSize: 14, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -323,10 +354,13 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: _isSearching ? null : _startScanning,
+                  onPressed: _isSearching ? _stopScanning : _startScanning,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.red, width: 2),
+                    side: BorderSide(
+                      color: _isSearching ? Colors.orange : Colors.red,
+                      width: 2,
+                    ),
                     padding: const EdgeInsets.all(20),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15),
@@ -337,7 +371,7 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
                           width: 24,
                           height: 24,
                           child: CircularProgressIndicator(
-                            color: Colors.red,
+                            color: Colors.orange,
                             strokeWidth: 2,
                           ),
                         )
@@ -346,52 +380,130 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isSearching ? 'Scanning...' : 'Join (Scan for Devices)',
+                        _isSearching ? 'Stop Scanning' : 'Join (Scan for Devices)',
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 5),
-                      const Text(
-                        'Connect to a nearby host',
-                        style: TextStyle(fontSize: 14, color: Colors.white70),
+                      Text(
+                        _isSearching ? 'Tap to stop' : 'Connect to a nearby host',
+                        style: const TextStyle(fontSize: 14, color: Colors.white70),
                       ),
                     ],
                   ),
                 ),
               ),
               
-              // Show found devices
-              if (_foundDevices.isNotEmpty) ...[
-                const SizedBox(height: 30),
-                const Text(
-                  'Found Devices:',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                const SizedBox(height: 10),
-                ...List.generate(_foundDevices.length, (index) {
-                  final device = _foundDevices[index];
-                  return Card(
-                    color: const Color(0xFF1F1F1F),
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                      title: Text(
-                        device.name.isNotEmpty ? device.name : 'Unknown Device',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      subtitle: Text(
-                        device.address,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      trailing: ElevatedButton(
-                        onPressed: () => _connectToDevice(device),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
+              // Scanning status message
+              if (_isSearching) ...[
+                const SizedBox(height: 15),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Make sure the other device is hosting and discoverable',
+                          style: TextStyle(color: Colors.orange, fontSize: 12),
                         ),
-                        child: const Text('Connect'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              // Show found devices or scanning message
+              if (_isSearching || _foundDevices.isNotEmpty) ...[
+                const SizedBox(height: 30),
+                Row(
+                  children: [
+                    const Text(
+                      'Found Devices:',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  );
-                }),
+                    const SizedBox(width: 10),
+                    Text(
+                      '(${_foundDevices.length})',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                
+                // Show devices if found
+                if (_foundDevices.isNotEmpty) ...[
+                  ...List.generate(_foundDevices.length, (index) {
+                    final device = _foundDevices[index];
+                    return Card(
+                      color: const Color(0xFF1F1F1F),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        leading: const Icon(Icons.bluetooth, color: Colors.blue, size: 32),
+                        title: Text(
+                          device.name.isNotEmpty ? device.name : 'Unknown Device',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          device.address,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        trailing: ElevatedButton(
+                          onPressed: () => _connectToDevice(device),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
+                          ),
+                          child: const Text('Connect'),
+                        ),
+                      ),
+                    );
+                  }),
+                ]
+                // Show "searching" message if still scanning and no devices yet
+                else if (_isSearching) ...[
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1F1F1F),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Column(
+                      children: [
+                        CircularProgressIndicator(color: Colors.orange),
+                        SizedBox(height: 15),
+                        Text(
+                          'Searching for nearby devices...',
+                          style: TextStyle(color: Colors.grey, fontSize: 14),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          'This may take a few seconds',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
@@ -614,14 +726,51 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
   
   // Start hosting (become server)
   Future<void> _startHosting() async {
-    setState(() => _isHost = true);
+    print('🎯 Starting host mode...');
+    
+    setState(() {
+      _isHost = true;
+      _isHosting = true;
+    });
+    
+    // Ensure permissions are granted
+    final permissionsOk = await _host.requestPermissions();
+    if (!permissionsOk) {
+      print('❌ Host permissions not granted');
+      setState(() => _isHosting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bluetooth permissions are required to host'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+    
+    print('✅ Making device discoverable...');
     await _host.makeDiscoverable();
+    
+    print('✅ Starting server...');
     final started = await _host.startServer();
+    
     if (started) {
+      print('✅ Host started successfully');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('🟢 Hosting started! Waiting for connections...'),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } else {
+      print('❌ Failed to start host');
+      setState(() => _isHosting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to start hosting. Please check Bluetooth is enabled.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
         ),
       );
     }
@@ -629,24 +778,80 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
   
   // Start scanning for devices
   Future<void> _startScanning() async {
+    print('🔍 Starting device scan...');
+    
     setState(() {
       _isHost = false;
       _isSearching = true;
       _foundDevices.clear();
     });
-    await _client.startDiscovery();
+    
+    // Ensure permissions are granted
+    final permissionsOk = await _client.requestPermissions();
+    if (!permissionsOk) {
+      print('❌ Permissions not granted');
+      setState(() => _isSearching = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bluetooth permissions are required to scan for devices'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+    
+    print('✅ Permissions OK, starting discovery...');
+    final started = await _client.startDiscovery();
+    
+    if (!started) {
+      print('❌ Failed to start discovery');
+      setState(() => _isSearching = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to start scanning. Please check Bluetooth is enabled.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } else {
+      print('✅ Discovery started successfully');
+    }
+  }
+  
+  // Stop scanning for devices
+  void _stopScanning() {
+    print('🛑 Stopping device scan...');
+    _client.stopDiscovery();
+    setState(() => _isSearching = false);
   }
   
   // Connect to a specific device
   Future<void> _connectToDevice(BluetoothDevice device) async {
+    print('🔗 Attempting to connect to ${device.name} (${device.address})...');
+    
+    // Show connecting message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Connecting to ${device.name.isNotEmpty ? device.name : device.address}...'),
+        backgroundColor: Colors.orange,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    
     final success = await _client.connectToDevice(device.address);
+    
     if (!success) {
+      print('❌ Connection failed');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Failed to connect'),
+          content: Text('Failed to connect. Make sure the device is hosting.'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
         ),
       );
+    } else {
+      print('✅ Connected successfully!');
     }
   }
   
@@ -662,6 +867,8 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
       _isConnected = false;
       _connectedDevice = '';
       _foundDevices.clear();
+      _isHosting = false;
+      _isSearching = false;
     });
   }
   
