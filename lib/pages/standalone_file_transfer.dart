@@ -45,7 +45,8 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
     super.initState();
     _setupBluetoothCallbacks();
     _setupFileTransferCallbacks();
-    _requestPermissions();
+    // Pre-warm permissions like HomePage does
+    Future.microtask(_requestPermissions);
     print('📱 Standalone File Transfer Page initialized');
   }
   
@@ -54,12 +55,9 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
     // Client callbacks (when joining)
     _client.onDeviceFound = (device) {
       if (!mounted) return;
-      print('🔍 Device found: ${device.name} (${device.address})');
-      setState(() {
-        if (!_foundDevices.any((d) => d.address == device.address)) {
-          _foundDevices.add(device);
-        }
-      });
+      print('🔍 Device found: ${device.name.isNotEmpty ? device.name : "Unknown"} (${device.address})');
+      // Add device without checking for duplicates - same as HomePage
+      setState(() => _foundDevices.add(device));
     };
     
     _client.onDiscoveryFinished = () {
@@ -174,7 +172,7 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
     };
   }
   
-  // Request Bluetooth permissions
+  // Request Bluetooth permissions - matches HomePage approach
   Future<void> _requestPermissions() async {
     await [
       Permission.bluetoothScan,
@@ -182,9 +180,13 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
       Permission.bluetoothAdvertise,
       Permission.locationWhenInUse,
     ].request();
-    
-    await _client.requestPermissions();
-    await _host.requestPermissions();
+
+    final permissionsOk = await _client.requestPermissions();
+    if (!permissionsOk && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bluetooth permissions are required.')),
+      );
+    }
   }
   
   @override
@@ -776,46 +778,38 @@ class _StandaloneFileTransferPageState extends State<StandaloneFileTransferPage>
     }
   }
   
-  // Start scanning for devices
+  // Start scanning for devices - EXACT copy from HomePage
   Future<void> _startScanning() async {
-    print('🔍 Starting device scan...');
-    
     setState(() {
-      _isHost = false;
-      _isSearching = true;
       _foundDevices.clear();
+      _isSearching = true;
     });
     
-    // Ensure permissions are granted
+    // Request permissions first
+    await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.bluetoothAdvertise,
+      Permission.locationWhenInUse,
+    ].request();
+
     final permissionsOk = await _client.requestPermissions();
     if (!permissionsOk) {
-      print('❌ Permissions not granted');
-      setState(() => _isSearching = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bluetooth permissions are required to scan for devices'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      if (mounted) {
+        setState(() => _isSearching = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bluetooth permissions are required.')),
+        );
+      }
       return;
     }
     
-    print('✅ Permissions OK, starting discovery...');
     final started = await _client.startDiscovery();
-    
-    if (!started) {
-      print('❌ Failed to start discovery');
+    if (!started && mounted) {
       setState(() => _isSearching = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to start scanning. Please check Bluetooth is enabled.'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
-        ),
+        const SnackBar(content: Text('Discovery failed to start')),
       );
-    } else {
-      print('✅ Discovery started successfully');
     }
   }
   

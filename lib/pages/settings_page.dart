@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/chat_storage_service.dart';
+import '../services/wipe_service.dart';
+import '../utils/system_utils.dart';
 
 // Settings page placeholder
 // Can add app settings, preferences, about info, etc. later
@@ -116,6 +119,9 @@ class SettingsPage extends StatelessWidget {
               subtitle: 'View source code',
               onTap: () {},
             ),
+
+            const SizedBox(height: 30),
+            _buildDangerZone(context),
           ],
         ),
       ),
@@ -145,5 +151,123 @@ class SettingsPage extends StatelessWidget {
         onTap: onTap,
       ),
     );
+  }
+
+  // --- Kill Switch UI Block ---
+  Widget _buildDangerZone(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Danger Zone',
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Card(
+          color: const Color(0xFF1F1F1F),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Kill Switch',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Wipes all saved chats, files, and local data. Then opens the system uninstall screen to remove the app.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(Icons.warning_amber_rounded),
+                    label: const Text(
+                      'Activate Kill Switch',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: () => _confirmKillSwitch(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmKillSwitch(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1F1F1F),
+            title: const Text('Activate Kill Switch?', style: TextStyle(color: Colors.white)),
+            content: const Text(
+              'This will permanently delete all chats, received files, and local data. Next, you\'ll be taken to the uninstall screen. This cannot be undone.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Yes, Wipe & Uninstall'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    // Progress dialog while wiping
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Colors.red),
+      ),
+    );
+
+    // 1) Clear local app data
+    await WipeService.clearAllData();
+    await ChatStorageService.clearHostChat();
+    await ChatStorageService.clearClientChat();
+
+    // Close progress
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
+    // 2) Notify and open uninstall/settings
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Local data wiped. Opening uninstall/settings...'),
+      backgroundColor: Colors.red,
+      duration: Duration(seconds: 2),
+    ));
+
+    await SystemUtils.requestUninstallOrOpenSettings();
   }
 }

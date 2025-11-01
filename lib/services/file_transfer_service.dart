@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import '../models/file_transfer_item.dart';
 import '../utils/constants.dart';

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bt_classic/bt_classic.dart';
 import 'file_transfer_page.dart';
 import '../services/file_transfer_service.dart';
+import '../services/chat_storage_service.dart';
 import '../utils/constants.dart';
 
 class MessageClient extends StatefulWidget {
@@ -55,6 +56,78 @@ class _MessageClientState extends State<MessageClient> {
     };
 
     _connect();
+    _loadSavedChat();
+  }
+
+  // Load saved chat messages if they exist
+  Future<void> _loadSavedChat() async {
+    final savedMessages = await ChatStorageService.loadClientChat();
+    if (savedMessages.isNotEmpty && mounted) {
+      setState(() {
+        _msgs.clear();
+        for (var msgData in savedMessages) {
+          _msgs.add(_Msg(
+            text: msgData['text'] as String,
+            sentByMe: msgData['sentByMe'] as bool,
+          ));
+        }
+      });
+    }
+  }
+
+  // Save current chat messages
+  Future<void> _saveChat() async {
+    final messagesToSave = _msgs.map((msg) => {
+      'text': msg.text,
+      'sentByMe': msg.sentByMe,
+    }).toList();
+    
+    await ChatStorageService.saveClientChat(messagesToSave);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('💾 Chat saved successfully!'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  // Clear current chat and saved messages
+  Future<void> _clearChat() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear Chat?'),
+        content: const Text('This will clear the current chat and delete any saved messages.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Clear', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _msgs.clear());
+      await ChatStorageService.clearClientChat();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🗑️ Chat cleared'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _connect() async {
@@ -85,6 +158,8 @@ class _MessageClientState extends State<MessageClient> {
   void dispose() {
     _client.disconnect();
     _controller.dispose();
+    // Note: We don't clear saved chats on dispose
+    // They only get cleared when explicitly saved by user or on app restart
     super.dispose();
   }
 
@@ -104,6 +179,18 @@ class _MessageClientState extends State<MessageClient> {
           ),
         ),
         actions: [
+          // Clear Chat button
+          IconButton(
+            tooltip: 'Clear Chat',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _msgs.isNotEmpty ? _clearChat : null,
+          ),
+          // Save Chat button
+          IconButton(
+            tooltip: 'Save Chat',
+            icon: const Icon(Icons.save),
+            onPressed: _msgs.isNotEmpty ? _saveChat : null,
+          ),
           // File Transfer button
           IconButton(
             tooltip: 'Send File',
